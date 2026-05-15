@@ -1,0 +1,39 @@
+@page "/"
+
+<PageTitle>MongoDelta Test App</PageTitle>
+
+<h1>MongoDelta — Blazor Test App</h1>
+
+<p>Three pages demonstrating HTTP 304 caching behaviour with MongoDelta.</p>
+
+<table class="table">
+    <thead>
+        <tr><th>Page</th><th>Pattern</th><th>MongoDelta effect</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><a href="/products-api">Products (API)</a></td>
+            <td>Static SSR · fetches <code>/api/products</code> via HttpClient</td>
+            <td>Full 304 — watch the Network tab</td>
+        </tr>
+        <tr>
+            <td><a href="/products-ssr">Products (SSR)</a></td>
+            <td>Static SSR · injects <code>IMongoCollection&lt;T&gt;</code> directly</td>
+            <td>Full 304 — DB call skipped entirely on cache hit</td>
+        </tr>
+        <tr>
+            <td><a href="/products-interactive">Products (Interactive)</a></td>
+            <td>Interactive Server · direct DB injection</td>
+            <td>Prerender only — button clicks bypass MongoDelta via SignalR</td>
+        </tr>
+    </tbody>
+</table>
+
+<h2 class="mt-4">Quick start</h2>
+<ol>
+    <li>Make sure a MongoDB replica set is running (<code>./dev-server.sh</code> from the MongoDelta repo root)</li>
+    <li>Run this app: <code>dotnet run</code></li>
+    <li>Go to <strong>Products (API)</strong> and click <strong>Seed / Reset data</strong></li>
+    <li>Open DevTools → Network tab, ensure <strong>Disable cache is OFF</strong></li>
+    <li>Follow the test scenarios in <code>docs/TEST_PLAN.md</code></li>
+</ol>

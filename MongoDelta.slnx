@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/BlazorMongoDeltaTest/BlazorMongoDeltaTest.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/MongoDelta.Benchmarks/MongoDelta.Benchmarks.csproj" />
     <Project Path="src/MongoDelta.Spike/MongoDelta.Spike.csproj" />

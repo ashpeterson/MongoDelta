@@ -1,0 +1,47 @@
+@page "/products-ssr"
+@inject IMongoCollection<Product> Collection
+@inject ILogger<ProductsSsr> Logger
+
+<PageTitle>Products — Direct DB (Static SSR)</PageTitle>
+
+<h2>Products direct from MongoDB <small class="text-muted fs-6">Static SSR + direct injection</small></h2>
+<p class="text-muted">
+    This page injects <code>IMongoCollection&lt;Product&gt;</code> directly — no API layer.
+    On a <strong>304</strong>, <code>OnInitializedAsync</code> never runs and MongoDB is never queried.
+    Check the server console log: <em>"DB call executing"</em> should appear only on 200 responses.
+</p>
+
+@if (_products.Count == 0)
+{
+    <p><em>No products found. Seed data from the <a href="/products-api">API page</a>.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Name</th><th>Category</th><th>Price</th></tr></thead>
+        <tbody>
+            @foreach (var p in _products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.Category</td>
+                    <td>@p.Price.ToString("C")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<p class="text-muted mt-3">
+    Navigate away then back (or press F5) to see 304 suppressing the DB call.
+</p>
+
+@code {
+    private List<Product> _products = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation(">>> DB call executing (OnInitializedAsync)");
+        _products = await Collection.Find(_ => true).ToListAsync();
+    }
+}

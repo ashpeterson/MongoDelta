@@ -1,0 +1,92 @@
+@page "/products-api"
+@inject IHttpClientFactory HttpFactory
+
+<PageTitle>Products — API (Static SSR)</PageTitle>
+
+<h2>Products via API <small class="text-muted fs-6">Static SSR + HTTP client</small></h2>
+<p class="text-muted">
+    This page fetches <code>/api/products</code> via <code>HttpClient</code>.
+    Watch the Network tab: the second load should be <strong>304</strong>.
+</p>
+
+<div class="alert @_alertClass mb-3">
+    Last fetch: <strong>@_lastStatus</strong>
+    @if (!string.IsNullOrEmpty(_etag))
+    {
+        <br /><code>ETag: @_etag</code>
+    }
+</div>
+
+@if (_products.Count == 0)
+{
+    <p><em>No products. Use the Seed button below.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Name</th><th>Category</th><th>Price</th></tr></thead>
+        <tbody>
+            @foreach (var p in _products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.Category</td>
+                    <td>@p.Price.ToString("C")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary" @onclick="Load">Reload</button>
+    <button class="btn btn-secondary" @onclick="Seed">Seed / Reset data</button>
+    <button class="btn btn-warning" @onclick="AddProduct">Add random product</button>
+</div>
+
+@code {
+    private List<Product> _products = [];
+    private string _lastStatus = "—";
+    private string _etag = "";
+    private string _alertClass = "alert-secondary";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        var http = HttpFactory.CreateClient("api");
+        var resp = await http.GetAsync("/api/products");
+
+        _lastStatus = $"HTTP {(int)resp.StatusCode} {resp.StatusCode}";
+        _etag = resp.Headers.ETag?.ToString() ?? "";
+        _alertClass = resp.StatusCode switch
+        {
+            System.Net.HttpStatusCode.NotModified => "alert-success",
+            System.Net.HttpStatusCode.OK          => "alert-info",
+            _                                     => "alert-warning"
+        };
+
+        if (resp.StatusCode != System.Net.HttpStatusCode.NotModified)
+            _products = await resp.Content.ReadFromJsonAsync<List<Product>>() ?? [];
+    }
+
+    private async Task Seed()
+    {
+        var http = HttpFactory.CreateClient("api");
+        await http.PostAsync("/api/seed", null);
+        await Load();
+    }
+
+    private async Task AddProduct()
+    {
+        var http = HttpFactory.CreateClient("api");
+        var newProduct = new Product
+        {
+            Name     = $"New Item {Random.Shared.Next(100, 999)}",
+            Category = "Test",
+            Price    = (decimal)(Random.Shared.NextDouble() * 100)
+        };
+        await http.PostAsJsonAsync("/api/products", newProduct);
+        await Load();
+    }
+}

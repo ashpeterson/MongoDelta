@@ -1,0 +1,60 @@
+@page "/products-interactive"
+@rendermode InteractiveServer
+@inject IMongoCollection<Product> Collection
+@inject ILogger<ProductsInteractive> Logger
+
+<PageTitle>Products — Interactive Server</PageTitle>
+
+<h2>Products — Interactive Server <small class="text-muted fs-6">SignalR re-renders</small></h2>
+<p class="text-muted">
+    This page uses <code>InteractiveServer</code> render mode.
+    MongoDelta only fires on the initial HTTP prerender.
+    Button clicks go over <strong>SignalR</strong> — MongoDelta is not involved.
+    Watch the server console: the DB call runs on every button click, uncached.
+</p>
+
+<div class="alert alert-warning">
+    DB call count this session: <strong>@_dbCallCount</strong>
+    (first call = prerender or page load; subsequent = SignalR re-renders)
+</div>
+
+@if (_products.Count == 0)
+{
+    <p><em>No products. Seed data from the <a href="/products-api">API page</a>.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead><tr><th>Name</th><th>Category</th><th>Price</th></tr></thead>
+        <tbody>
+            @foreach (var p in _products)
+            {
+                <tr>
+                    <td>@p.Name</td>
+                    <td>@p.Category</td>
+                    <td>@p.Price.ToString("C")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<button class="btn btn-primary mt-2" @onclick="Refresh">
+    Refresh from DB (SignalR, bypasses MongoDelta)
+</button>
+
+@code {
+    private List<Product> _products = [];
+    private int _dbCallCount;
+
+    protected override async Task OnInitializedAsync() => await FetchFromDb("OnInitializedAsync");
+
+    private async Task Refresh() => await FetchFromDb("button click");
+
+    private async Task FetchFromDb(string trigger)
+    {
+        _dbCallCount++;
+        Logger.LogInformation(">>> DB call #{Count} via {Trigger} (outside MongoDelta)", _dbCallCount, trigger);
+        _products = await Collection.Find(_ => true).ToListAsync();
+    }
+}
