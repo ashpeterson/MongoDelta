@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+
+    <!-- NuGet metadata -->
+    <PackageId>MongoDelta</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Authors>MongoDelta Contributors</Authors>
+    <Description>
+      HTTP 304 Not Modified middleware for ASP.NET Core backed by MongoDB.
+      Uses $clusterTime on replica sets / Atlas (zero application changes) or a
+      version counter on standalone mongod. Modelled after SimonCropp/Delta.
+    </Description>
+    <PackageTags>mongodb;aspnetcore;middleware;http-caching;etag;304;http304</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MongoDB.Driver" Version="3.4.0" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,23 @@
+## .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+.idea/
+
+## BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/
+
+## Dev server runtime files
+/tmp/mongodelta-dev/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+project.lock.json
+
+## OS
+.DS_Store
+Thumbs.db

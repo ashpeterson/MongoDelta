@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MongoDelta.Benchmarks/MongoDelta.Benchmarks.csproj" />
+    <Project Path="src/MongoDelta.Spike/MongoDelta.Spike.csproj" />
+    <Project Path="src/MongoDelta.Tests/MongoDelta.Tests.csproj" />
+    <Project Path="src/MongoDelta/MongoDelta.csproj" />
+  </Folder>
+</Solution>
