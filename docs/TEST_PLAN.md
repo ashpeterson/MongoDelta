@@ -500,6 +500,176 @@ A `304` response will show **0 B** transferred and no response body.
 
 ---
 
+## Render mode compatibility
+
+### How MongoDelta interacts with each Blazor render mode
+
+**Static SSR — full benefit, cleanest architecture**
+
+MongoDelta fires at the middleware level before the component executes. Direct MongoDB
+calls inside the component are automatically skipped on a 304:
+
+```
+GET /products
+  │
+  ▼
+MongoDelta: hello → $clusterTime → build ETag
+  ├─ If-None-Match matches → 304 returned immediately
+  │   component never runs, DB call never made
+  │
+  └─ no match → component executes → collection.Find().ToListAsync()
+                                    → renders HTML → 200 + ETag set
+```
+
+No API layer needed. Inject `IMongoCollection<T>` directly into the component;
+MongoDelta handles whether it runs at all.
+
+```razor
+@* Static SSR page — direct DB call, MongoDelta handles the rest *@
+@page "/products"
+@inject IMongoCollection<Product> Collection
+
+@code {
+    private List<Product> _products = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Only reached when $clusterTime has advanced (data may have changed).
+        // On a 304 this method never runs.
+        _products = await Collection.Find(_ => true).ToListAsync();
+    }
+}
+```
+
+**Interactive Server — prerender only**
+
+MongoDelta fires once on the initial HTTP prerender request. After that, all
+re-renders go over SignalR — MongoDelta is not involved:
+
+```
+Initial load (HTTP)           → MongoDelta fires → may return 304 or 200
+Button click / state change   → SignalR → component re-renders → DB called unconditionally
+```
+
+Direct DB calls inside Interactive Server components are therefore **unguarded after
+the first render**. Every user interaction that triggers a re-render hits MongoDB
+with no caching. For data that changes rarely and is expensive to query, consider:
+
+- Keeping the component **Static SSR** and accepting a full-page navigation on mutation
+- Fetching from an API endpoint and managing the ETag client-side in your HttpClient calls
+- Caching the result in a scoped/singleton service and invalidating it manually
+
+**Interactive WebAssembly — API endpoints only**
+
+The browser sandbox has no TCP access to MongoDB. Components must call HTTP API
+endpoints. MongoDelta on those endpoints works fully — the browser handles
+`If-None-Match` / `ETag` automatically via `fetch()`.
+
+**Interactive Auto — depends on phase**
+
+- Initial prerender (HTTP): MongoDelta fires once, same as Interactive Server
+- Interactive Server phase: SignalR, MongoDelta not involved
+- WebAssembly phase: browser fetch, MongoDelta applies to API calls
+
+### Summary table
+
+| Render mode | Direct DB call in component | MongoDelta effect |
+|---|---|---|
+| **Static SSR** | Supported | Full: 304 skips component + DB call entirely |
+| **Interactive Server** | Supported | Prerender only; re-renders always hit DB |
+| **Interactive WebAssembly** | Not possible | Use API endpoints — browser handles ETags |
+| **Interactive Auto** | Not possible in WASM phase | Use API endpoints |
+
+**Recommendation:** For read-heavy pages showing reference or catalogue data, prefer
+**Static SSR + direct DB injection**. For pages that need real-time interactivity,
+use **Interactive WebAssembly + API endpoints** and let the browser manage ETags.
+
+---
+
+### T11 — Static SSR with direct DB call: DB is skipped on 304
+
+This test verifies that a Static SSR component injecting `IMongoCollection<T>` directly
+has its `OnInitializedAsync` skipped entirely on a 304 response.
+
+**Steps:**
+1. Create a Static SSR page that injects the collection and logs on each DB call:
+   ```razor
+   @page "/products-ssr"
+   @inject IMongoCollection<Product> Collection
+   @inject ILogger<ProductsSsr> Logger
+
+   @code {
+       private List<Product> _products = [];
+
+       protected override async Task OnInitializedAsync()
+       {
+           Logger.LogInformation("DB call executing");
+           _products = await Collection.Find(_ => true).ToListAsync();
+       }
+   }
+   ```
+2. Remove `/products-ssr` from the `OnSkip` predicate so MongoDelta applies:
+   ```csharp
+   options.OnSkip = ctx => ctx.Request.Path.StartsWithSegments("/api");
+   // (only skip /api now — SSR pages are included)
+   ```
+3. Navigate to `/products-ssr` — observe `DB call executing` in the console log.
+4. Navigate away and back (or hard-refresh without clearing cache).
+
+**Expected:**
+- First request: console shows `DB call executing`, response is `200` with `ETag`
+- Second request: console shows **nothing** — `OnInitializedAsync` never ran, response is `304`
+
+**Pass criteria:** Log line absent on the second request; response is `304`.
+
+---
+
+### T12 — Interactive Server: DB called on every re-render despite 304 on prerender
+
+**Steps:**
+1. Create an Interactive Server component with a counter and a DB call:
+   ```razor
+   @page "/products-interactive"
+   @rendermode InteractiveServer
+   @inject IMongoCollection<Product> Collection
+   @inject ILogger<ProductsInteractive> Logger
+
+   <button @onclick="Increment">Clicked @_count times</button>
+   <p>Products: @_products.Count</p>
+
+   @code {
+       private int _count;
+       private List<Product> _products = [];
+
+       protected override async Task OnInitializedAsync()
+       {
+           Logger.LogInformation("DB call on init");
+           _products = await Collection.Find(_ => true).ToListAsync();
+       }
+
+       private async Task Increment()
+       {
+           _count++;
+           Logger.LogInformation("Re-render — no DB call triggered by button");
+           // Note: OnInitializedAsync does NOT re-run on button click.
+           // But if you call DB here it runs outside MongoDelta.
+       }
+   }
+   ```
+2. Navigate to `/products-interactive`.
+3. Click the button several times.
+
+**Expected:**
+- Initial page load: `DB call on init` appears once in the log
+- Prerender HTTP response: `200` with `ETag` (MongoDelta fired)
+- Button clicks: SignalR re-renders, MongoDelta not involved
+- If you add a DB call inside `Increment()`, it executes unconditionally on every click
+
+**Pass criteria:** Understand that MongoDelta only protected the initial HTTP prerender,
+not any subsequent interactive state.
+
+---
+
 ## Common issues
 
 | Symptom | Likely cause | Fix |
